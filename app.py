@@ -3,7 +3,7 @@ import uuid
 import httpx
 import gradio as gr
 
-A2A_URL = os.getenv("A2A_URL", "https://flight-booking-agent-bq9s.onrender.com/")
+A2A_URL = os.getenv("A2A_URL", "https://demo-small-gw1-nw0gqe.5sc6y6-1.usa-e2.cloudhub.io/flightbooking")
 REQUEST_TIMEOUT = int(os.getenv("A2A_TIMEOUT", "60"))
 
 STATE_MAP = {
