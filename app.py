@@ -56,21 +56,25 @@ def respond(message: str, history: list, broker_url: str, request: gr.Request):
     if new_ctx:
         _session_ctx[session_key] = new_ctx
 
-    state = STATE_MAP.get(result.get("status", {}).get("state", "unknown"), "unknown")
+    # Handle two response shapes:
+    # 1. Message response (kind="message"): parts are at result.parts directly
+    # 2. Task response (kind="task"): parts are at result.status.message.parts / result.artifacts
+    if result.get("kind") == "message":
+        body = _extract_text(result.get("parts", []))
+    else:
+        state = STATE_MAP.get(result.get("status", {}).get("state", "unknown"), "unknown")
+        status_text = _extract_text(result.get("status", {}).get("message", {}).get("parts", []))
+        artifact_text = "".join(
+            _extract_text(a.get("parts", [])) for a in result.get("artifacts", [])
+        )
+        body = artifact_text or status_text
 
-    status_text = _extract_text(result.get("status", {}).get("message", {}).get("parts", []))
-    artifact_text = "".join(
-        _extract_text(a.get("parts", [])) for a in result.get("artifacts", [])
-    )
-
-    body = artifact_text or status_text or f"(state: {state}, no text returned)"
-
-    if state == "input-required":
-        body = f"**Agent needs more info:**\n\n{body}"
-    elif state == "failed":
-        body = f"**Agent failed:**\n\n{body}"
-    elif state not in ("completed", "unknown"):
-        body = f"*State: {state}*\n\n{body}"
+        if not body:
+            body = f"(state: {state}, no text returned)"
+        elif state == "input-required":
+            body = f"**Agent needs more info:**\n\n{body}"
+        elif state == "failed":
+            body = f"**Agent failed:**\n\n{body}"
 
     return body
 
