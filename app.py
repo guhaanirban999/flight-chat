@@ -1,10 +1,14 @@
 import os
 import uuid
+import threading
 import httpx
 import gradio as gr
 
 A2A_URL = os.getenv("A2A_URL", "https://demo-small-gw1-nw0gqe.5sc6y6-1.usa-e2.cloudhub.io/flightbooking")
 REQUEST_TIMEOUT = int(os.getenv("A2A_TIMEOUT", "60"))
+
+# Health endpoint pinged on session start to wake the booking agent on Render free tier.
+WARMUP_URL = os.getenv("WARMUP_URL", "https://flight-booking-agent-bq9s.onrender.com/healthz")
 
 STATE_MAP = {
     "completed": "completed",
@@ -15,12 +19,26 @@ STATE_MAP = {
 }
 
 _session_ctx: dict[str, str] = {}
+_warmed_sessions: set[str] = set()
+
+
+def _fire_warmup() -> None:
+    """Background: ping booking agent /healthz to wake it from Render free-tier sleep."""
+    try:
+        httpx.get(WARMUP_URL, timeout=30)
+    except Exception:
+        pass
 
 
 def respond(message: str, history: list, broker_url: str, request: gr.Request):
     url = (broker_url or A2A_URL).strip().rstrip("/") + "/"
     session_key = str(request.session_hash) if request else "default"
     context_id = _session_ctx.get(session_key, "")
+
+    # On first message in this session, ping /healthz to wake the booking agent.
+    if session_key not in _warmed_sessions:
+        _warmed_sessions.add(session_key)
+        threading.Thread(target=_fire_warmup, daemon=True).start()
 
     # A2A v0.3 classic JSON-RPC
     payload = {
