@@ -39,18 +39,10 @@ def respond(message: str, history: list, broker_url: str, request: gr.Request):
 
     try:
         resp = httpx.post(url, json=payload, timeout=REQUEST_TIMEOUT)
-    except httpx.TimeoutException:
-        return "Request timed out — the agent may be cold-starting on Render. Wait ~30s and retry."
-    except Exception as e:
-        return f"Error: {e}"
-
-    if resp.status_code == 429:
-        _session_ctx.pop(session_key, None)  # stale context may be causing the rejection
-        return "The agent is currently busy. Please try again in a moment."
-
-    try:
         resp.raise_for_status()
         data = resp.json()
+    except httpx.TimeoutException:
+        return "Request timed out — the agent may be cold-starting on Render. Wait ~30s and retry."
     except Exception as e:
         return f"Error: {e}"
 
